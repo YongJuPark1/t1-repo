@@ -22,8 +22,6 @@ namespace ServerMain
             XmlConfigurator.ConfigureAndWatch(new FileInfo("log4net.config"));
 
             host.Run();
-
-            //test
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args)
