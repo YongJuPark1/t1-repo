@@ -8,34 +8,73 @@
 #include "Common/TcpSocketBuilder.h"
 #include "SFRM/Network/TCP/PacketSession.h"
 #include "SFRM/Network/TCP/TCPRequest.h"
+#include "SFRM/Network/HTTP/WebProtocol.h"
+#include "LyraLogChannels.h"
 
+void USFGameInstance::Init()
+{
+	Super::Init();
 
+	if (false == GetWorld()->GetTimerManager().IsTimerActive(PingTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(PingTimerHandle, this, &USFGameInstance::SendPingCheck, 3.0f, true);
+	}
 
+	if (false == GetWorld()->GetTimerManager().IsTimerActive(RecvTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(RecvTimerHandle, this, &USFGameInstance::HandleRecvPackets, 0.1f, true);
+	}
+
+}
 void USFGameInstance::ConnectToGameServer()
 {
-	Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(TEXT("Stream"), TEXT("Client Socket"));
-
-	FIPv4Address Ip = NULL;
-	FIPv4Address::Parse(IpAddress, Ip);
-
-	TSharedPtr<FInternetAddr> InternetAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	InternetAddr->SetIp(Ip.Value);
-	InternetAddr->SetPort(Port);
-
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connecting To Server...")));
-
-	bool Connected = Socket->Connect(*InternetAddr);
-
-	if (Connected)
+	if (GetWorld()->GetNetMode() == NM_DedicatedServer || GetWorld()->GetNetMode() == NM_ListenServer)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connected Success")));
-		GameServerSession = MakeShared<PacketSession>(Socket);
-		GameServerSession->Run();
+		return;
 	}
-	else
+
+	if (Socket || Connected)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connected Falied")));
+		DisconnectFromGameServer();
 	}
+
+	UWebProtocol::FetchServerConfig("LOCAL", [this](const FString& _IP, int32 _Port)
+	{
+		this->IpAddress = _IP;
+		this->Port = _Port;
+		FString DebugMessage = FString::Printf(TEXT("[GetServerConfig] IP: %s, Port: %d"), *_IP, _Port);
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, DebugMessage);
+
+		Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(TEXT("Stream"), TEXT("Client Socket"));
+
+		FIPv4Address Ip = NULL;
+		FIPv4Address::Parse(IpAddress, Ip);
+
+		TSharedPtr<FInternetAddr> InternetAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+		InternetAddr->SetIp(Ip.Value);
+		InternetAddr->SetPort(_Port);
+
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connecting To Server...")));
+
+		Connected = Socket->Connect(*InternetAddr);
+
+		if (Connected)
+		{
+			UE_LOG(LogLyraExperience, Log, TEXT("********************Connected Server Successed********************"));
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connected Success")));
+			GameServerSession = MakeShared<PacketSession>(Socket);
+			GameServerSession->Run();
+		}
+		else
+		{
+			UE_LOG(LogLyraExperience, Log, TEXT("********************Connected Server Falied********************"));
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Connected Falied")));
+		}
+
+		OnConnectGameServer.Broadcast(Connected);
+
+	});
+	
 }
 
 void USFGameInstance::DisconnectFromGameServer()
@@ -56,6 +95,8 @@ void USFGameInstance::HandleRecvPackets()
 
 	GameServerSession->HandleRecvPackets();
 }
+
+
 
 void USFGameInstance::SendPacket(TSharedPtr<class SendBuffer> SendBuffer)
 {

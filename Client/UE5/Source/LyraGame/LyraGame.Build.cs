@@ -16,6 +16,7 @@ public class LyraGame : ModuleRules
 				"LyraGame",
                 "LyraGame/SFRM/ThirdParty",
                 "LyraGame/SFRM/ThirdParty/msgpack",
+				"LyraGame/SFRM/Utils",
             }
 		);
 
@@ -48,9 +49,12 @@ public class LyraGame : ModuleRules
 				"Niagara",
 				"AsyncMixin",
 				"ControlFlows",
-				"PropertyPath",    
-				"Sockets", //TCP
+				"PropertyPath",
+                "Json",
+                "JsonUtilities",
+                "Sockets", //TCP
                 "Networking", //TCP
+				"HTTP",//HTTP
 			}
 		);
 
